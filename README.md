@@ -61,4 +61,20 @@ asyncio
     - get_event_loop()
         - 定位到: [asyncio/events.py](./asyncio-3.4.3/asyncio/events.py)
         - asyncio.events.get_event_loop()
+    - run_until_complete()
+        - 定位到: [base_events.py](./asyncio-3.4.3/asyncio/base_events.py)
+        - asyncio.base_events.BaseEventLoop.run_until_complete()
+    - @asyncio.coroutine
+        - 定位到: [coroutines.py](./asyncio-3.4.3/asyncio/coroutines.py)
+        - 协程装饰器
+        - asyncio.coroutines.coroutine()
+            - 定位到: [futures.py](./asyncio-3.4.3/asyncio/coroutines.py/futures.py)
+            - futures.Future 对象
+
+
+
+            
+
+
+
 
