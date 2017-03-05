@@ -637,6 +637,9 @@ class _UnixSubprocessTransport(base_subprocess.BaseSubprocessTransport):
             self._proc.stdin = open(stdin_w.detach(), 'wb', buffering=bufsize)
 
 
+#
+# 抽象接口类: 孩子监视器
+#
 class AbstractChildWatcher:
     """Abstract base class for monitoring child processes.
 
@@ -707,6 +710,9 @@ class AbstractChildWatcher:
         raise NotImplementedError()
 
 
+#
+# 孩子监视器-基类:
+#
 class BaseChildWatcher(AbstractChildWatcher):
 
     def __init__(self):
@@ -718,9 +724,15 @@ class BaseChildWatcher(AbstractChildWatcher):
     def _do_waitpid(self, expected_pid):
         raise NotImplementedError()
 
+    #
+    # 抽象接口:
+    #
     def _do_waitpid_all(self):
         raise NotImplementedError()
 
+    #
+    # 接口:
+    #
     def attach_loop(self, loop):
         assert loop is None or isinstance(loop, events.AbstractEventLoop)
 
@@ -761,6 +773,9 @@ class BaseChildWatcher(AbstractChildWatcher):
             return status
 
 
+#
+# 孩子监视器:
+#
 class SafeChildWatcher(BaseChildWatcher):
     """'Safe' child watcher implementation.
 
@@ -774,7 +789,7 @@ class SafeChildWatcher(BaseChildWatcher):
 
     def __init__(self):
         super().__init__()
-        self._callbacks = {}
+        self._callbacks = {}      # 回调
 
     def close(self):
         self._callbacks.clear()
@@ -804,6 +819,9 @@ class SafeChildWatcher(BaseChildWatcher):
         for pid in list(self._callbacks):
             self._do_waitpid(pid)
 
+    #
+    # 等待
+    #
     def _do_waitpid(self, expected_pid):
         assert expected_pid > 0
 
@@ -944,6 +962,10 @@ class FastChildWatcher(BaseChildWatcher):
                 callback(pid, returncode, *args)
 
 
+#
+# UNIX 默认事件循环策略:
+#   - 注意基类
+#
 class _UnixDefaultEventLoopPolicy(events.BaseDefaultEventLoopPolicy):
     """UNIX event loop policy with a watcher for child processes."""
     _loop_factory = _UnixSelectorEventLoop
@@ -953,13 +975,17 @@ class _UnixDefaultEventLoopPolicy(events.BaseDefaultEventLoopPolicy):
         self._watcher = None
 
     def _init_watcher(self):
-        with events._lock:
+        with events._lock:   # 锁
             if self._watcher is None:  # pragma: no branch
-                self._watcher = SafeChildWatcher()
-                if isinstance(threading.current_thread(),
-                              threading._MainThread):
+                self._watcher = SafeChildWatcher()       # 孩子监视器
+
+                # 当前线程为主线程
+                if isinstance(threading.current_thread(), threading._MainThread):
                     self._watcher.attach_loop(self._local._loop)
 
+    #
+    # 对外接口: 设置事件循环
+    #
     def set_event_loop(self, loop):
         """Set the event loop.
 
@@ -967,9 +993,9 @@ class _UnixDefaultEventLoopPolicy(events.BaseDefaultEventLoopPolicy):
         .set_event_loop() from the main thread will call .attach_loop(loop) on
         the child watcher.
         """
-
         super().set_event_loop(loop)
 
+        # 当前线程为主线程
         if self._watcher is not None and \
             isinstance(threading.current_thread(), threading._MainThread):
             self._watcher.attach_loop(loop)
@@ -995,4 +1021,8 @@ class _UnixDefaultEventLoopPolicy(events.BaseDefaultEventLoopPolicy):
         self._watcher = watcher
 
 SelectorEventLoop = _UnixSelectorEventLoop
+
+#
+# 默认事件循环策略
+#
 DefaultEventLoopPolicy = _UnixDefaultEventLoopPolicy
