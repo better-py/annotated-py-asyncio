@@ -15,14 +15,14 @@ to modify the meaning of the API call itself.
 
 
 import collections
-import concurrent.futures
-import heapq
-import inspect
+import concurrent.futures      # 注意
+import heapq                   # 注意
+import inspect                 # 注意
 import logging
 import os
-import socket
+import socket                  # 注意
 import subprocess
-import threading
+import threading               # 注意
 import time
 import traceback
 import sys
@@ -72,6 +72,9 @@ class _StopError(BaseException):
     """Raised to stop the event loop."""
 
 
+#
+# 检查地址:
+#
 def _check_resolved_address(sock, address):
     # Ensure that the address is already resolved to avoid the trap of hanging
     # the entire event loop when the address requires doing a DNS lookup.
@@ -80,9 +83,9 @@ def _check_resolved_address(sock, address):
     # be called in debug mode
     family = sock.family
 
-    if family == socket.AF_INET:
+    if family == socket.AF_INET:        # socket 类型: IPv4
         host, port = address
-    elif family == socket.AF_INET6:
+    elif family == socket.AF_INET6:     # socket 类型: IPv6
         host, port = address[:2]
     else:
         return
@@ -130,6 +133,9 @@ def _run_until_complete_cb(fut):
     _raise_stop_error()
 
 
+#
+# SERVER 类:
+#
 class Server(events.AbstractServer):
 
     def __init__(self, loop, sockets):
@@ -161,6 +167,7 @@ class Server(events.AbstractServer):
         if self._active_count == 0:
             self._wakeup()
 
+    # 唤醒:
     def _wakeup(self):
         waiters = self._waiters
         self._waiters = None
@@ -168,15 +175,21 @@ class Server(events.AbstractServer):
             if not waiter.done():
                 waiter.set_result(waiter)
 
+    # 协程:
+    #   - 等待关闭
+    #
     @coroutine
     def wait_closed(self):
         if self.sockets is None or self._waiters is None:
             return
-        waiter = futures.Future(loop=self._loop)
+        waiter = futures.Future(loop=self._loop)     #
         self._waiters.append(waiter)
         yield from waiter
 
 
+#
+# 事件循环基类:
+#
 class BaseEventLoop(events.AbstractEventLoop):
 
     def __init__(self):
@@ -203,13 +216,18 @@ class BaseEventLoop(events.AbstractEventLoop):
                 % (self.__class__.__name__, self.is_running(),
                    self.is_closed(), self.get_debug()))
 
+    #
+    # 创建任务:
+    #   - 定期执行一个协程对象.
+    #   - 返回一个任务对象.
+    #
     def create_task(self, coro):
         """Schedule a coroutine object.
 
         Return a task object.
         """
         self._check_closed()
-        task = tasks.Task(coro, loop=self)
+        task = tasks.Task(coro, loop=self)    # 构建 task 对象
         if task._source_traceback:
             del task._source_traceback[-1]
         return task
@@ -264,21 +282,29 @@ class BaseEventLoop(events.AbstractEventLoop):
         if self._closed:
             raise RuntimeError('Event loop is closed')
 
+    #
+    # 永久执行:
+    #
     def run_forever(self):
         """Run until stop() is called."""
         self._check_closed()
         if self.is_running():
             raise RuntimeError('Event loop is running.')
-        self._thread_id = threading.get_ident()
+        self._thread_id = threading.get_ident()    # 线程
+
         try:
             while True:
                 try:
-                    self._run_once()
+                    self._run_once()    # 关键调用, 执行
                 except _StopError:
                     break
         finally:
             self._thread_id = None
 
+    #
+    # 运行方式：
+    #   - 运行, 直到 future 结束.
+    #
     def run_until_complete(self, future):
         """Run until the Future is done.
 
@@ -301,7 +327,7 @@ class BaseEventLoop(events.AbstractEventLoop):
 
         future.add_done_callback(_run_until_complete_cb)
         try:
-            self.run_forever()
+            self.run_forever()     # 运行方式: 永久执行
         except:
             if new_task and future.done() and not future.cancelled():
                 # The coroutine raised a BaseException. Consume the exception
@@ -309,12 +335,16 @@ class BaseEventLoop(events.AbstractEventLoop):
                 # local task.
                 future.exception()
             raise
+
         future.remove_done_callback(_run_until_complete_cb)
         if not future.done():
             raise RuntimeError('Event loop stopped before Future completed.')
 
         return future.result()
 
+    #
+    # 停止事件循环:
+    #
     def stop(self):
         """Stop running the event loop.
 
@@ -324,6 +354,9 @@ class BaseEventLoop(events.AbstractEventLoop):
         """
         self.call_soon(_raise_stop_error)
 
+    #
+    # 关闭事件循环:
+    #
     def close(self):
         """Close the event loop.
 
@@ -360,6 +393,9 @@ class BaseEventLoop(events.AbstractEventLoop):
                 if not self.is_running():
                     self.close()
 
+    #
+    # 运行状态:
+    #
     def is_running(self):
         """Returns True if the event loop is running."""
         return (self._thread_id is not None)
@@ -412,6 +448,9 @@ class BaseEventLoop(events.AbstractEventLoop):
         timer._scheduled = True
         return timer
 
+    #
+    #
+    #
     def call_soon(self, callback, *args):
         """Arrange for a callback to be called as soon as possible.
 
@@ -1073,6 +1112,9 @@ class BaseEventLoop(events.AbstractEventLoop):
         if handle._scheduled:
             self._timer_cancelled_count += 1
 
+    #
+    # 启动
+    #
     def _run_once(self):
         """Run one full iteration of the event loop.
 
@@ -1094,14 +1136,14 @@ class BaseEventLoop(events.AbstractEventLoop):
                 else:
                     new_scheduled.append(handle)
 
-            heapq.heapify(new_scheduled)
+            heapq.heapify(new_scheduled)                # 堆, 类型转换:列表转换成堆
             self._scheduled = new_scheduled
             self._timer_cancelled_count = 0
         else:
             # Remove delayed calls that were cancelled from head of queue.
             while self._scheduled and self._scheduled[0]._cancelled:
                 self._timer_cancelled_count -= 1
-                handle = heapq.heappop(self._scheduled)
+                handle = heapq.heappop(self._scheduled)     # 堆, 最小出堆.
                 handle._scheduled = False
 
         timeout = None
@@ -1133,7 +1175,7 @@ class BaseEventLoop(events.AbstractEventLoop):
                            'poll %.3f ms took %.3f ms: timeout',
                            timeout * 1e3, dt * 1e3)
         else:
-            event_list = self._selector.select(timeout)
+            event_list = self._selector.select(timeout)      # select 实现
         self._process_events(event_list)
 
         # Handle 'later' callbacks that are ready.
@@ -1142,7 +1184,7 @@ class BaseEventLoop(events.AbstractEventLoop):
             handle = self._scheduled[0]
             if handle._when >= end_time:
                 break
-            handle = heapq.heappop(self._scheduled)
+            handle = heapq.heappop(self._scheduled)     # 堆, 最小值出堆
             handle._scheduled = False
             self._ready.append(handle)
 
