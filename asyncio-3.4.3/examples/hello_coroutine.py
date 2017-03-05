@@ -7,7 +7,8 @@ import asyncio
 
 
 #
-# 协程
+# 协程装饰器:
+#   - 跟踪代码定义处: coroutines.coroutine()
 #
 @asyncio.coroutine
 def greet_every_two_seconds():
