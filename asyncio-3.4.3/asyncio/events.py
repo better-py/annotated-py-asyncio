@@ -452,6 +452,14 @@ class AbstractEventLoop:
         raise NotImplementedError
 
 
+#########################################
+#             抽象接口: 事件循环策略
+#
+# 说明:
+#   - 定义一堆接口, 未实现
+#   - 子类实现
+#
+#########################################
 class AbstractEventLoopPolicy:
     """Abstract policy for accessing the event loop."""
 
@@ -486,6 +494,9 @@ class AbstractEventLoopPolicy:
         raise NotImplementedError
 
 
+#
+# 默认事件循环策略基类:
+#
 class BaseDefaultEventLoopPolicy(AbstractEventLoopPolicy):
     """Default policy implementation for accessing the event loop.
 
@@ -501,12 +512,15 @@ class BaseDefaultEventLoopPolicy(AbstractEventLoopPolicy):
 
     _loop_factory = None
 
+    #
+    # 注意基类:
+    #
     class _Local(threading.local):
         _loop = None
         _set_called = False
 
     def __init__(self):
-        self._local = self._Local()
+        self._local = self._Local()    # 局部定义类, 注意基类
 
     def get_event_loop(self):
         """Get the event loop.
@@ -544,17 +558,27 @@ class BaseDefaultEventLoopPolicy(AbstractEventLoopPolicy):
 _event_loop_policy = None
 
 # Lock for protecting the on-the-fly creation of the event loop policy.
+#
+# 线程锁
 _lock = threading.Lock()
 
 
+#
+# 初始化事件循环策略:
+#   - 初始化全局变量: _event_loop_policy
+#
 def _init_event_loop_policy():
     global _event_loop_policy
-    with _lock:
+    with _lock:    # 线程锁
         if _event_loop_policy is None:  # pragma: no branch
             from . import DefaultEventLoopPolicy
-            _event_loop_policy = DefaultEventLoopPolicy()
+            _event_loop_policy = DefaultEventLoopPolicy()   # 默认
 
 
+#########################################
+#             事件循环策略
+#
+#########################################
 def get_event_loop_policy():
     """Get the current event loop policy."""
     if _event_loop_policy is None:
@@ -571,11 +595,20 @@ def set_event_loop_policy(policy):
     _event_loop_policy = policy
 
 
+#########################################
+#             事件循环接口:
+#
+# 说明:
+#   - 如下是一堆事件循环接口
+#
+#########################################
+# 获取事件循环:
 def get_event_loop():
     """Equivalent to calling get_event_loop_policy().get_event_loop()."""
     return get_event_loop_policy().get_event_loop()
 
 
+# 设置事件循环:
 def set_event_loop(loop):
     """Equivalent to calling get_event_loop_policy().set_event_loop(loop)."""
     get_event_loop_policy().set_event_loop(loop)
