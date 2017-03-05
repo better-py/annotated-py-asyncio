@@ -227,7 +227,11 @@ class BaseEventLoop(events.AbstractEventLoop):
         Return a task object.
         """
         self._check_closed()
-        task = tasks.Task(coro, loop=self)    # 构建 task 对象
+
+        #
+        # 构建 task 对象
+        #
+        task = tasks.Task(coro, loop=self)
         if task._source_traceback:
             del task._source_traceback[-1]
         return task

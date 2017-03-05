@@ -22,6 +22,9 @@ from .coroutines import coroutine
 _PY34 = (sys.version_info >= (3, 4))
 
 
+#
+# Task 类:
+#
 class Task(futures.Future):
     """A coroutine wrapped in a Future."""
 
