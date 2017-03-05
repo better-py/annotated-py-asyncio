@@ -5,13 +5,13 @@ __all__ = ['CancelledError', 'TimeoutError',
            'Future', 'wrap_future',
            ]
 
-import concurrent.futures._base
+import concurrent.futures._base       # 注意
 import logging
 import reprlib
 import sys
 import traceback
 
-from . import events
+from . import events       # 注意
 
 # States for Future.
 _PENDING = 'PENDING'
@@ -111,6 +111,14 @@ class _TracebackLogger:
             self.loop.call_exception_handler({'message': msg})
 
 
+#########################################
+#             Future 类
+#
+# 说明:
+#   - 关键类
+#   - 实现协程装饰器, 依赖此类
+#
+#########################################
 class Future:
     """This class is *almost* compatible with concurrent.futures.Future.
 

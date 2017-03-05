@@ -21,16 +21,22 @@ import traceback
 _PY34 = sys.version_info >= (3, 4)
 
 
+#
+# 获取方法源:
+#
 def _get_function_source(func):
     if _PY34:
         func = inspect.unwrap(func)
     elif hasattr(func, '__wrapped__'):
         func = func.__wrapped__
+
     if inspect.isfunction(func):
         code = func.__code__
         return (code.co_filename, code.co_firstlineno)
+
     if isinstance(func, functools.partial):
         return _get_function_source(func.func)
+
     if _PY34 and isinstance(func, functools.partialmethod):
         return _get_function_source(func.func)
     return None
