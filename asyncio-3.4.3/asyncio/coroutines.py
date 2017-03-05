@@ -1,16 +1,18 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 __all__ = ['coroutine',
            'iscoroutinefunction', 'iscoroutine']
 
-import functools
-import inspect
+import functools   # 关键
+import inspect     # 关键
 import opcode
 import os
 import sys
 import traceback
 import types
 
-from . import events
-from . import futures
+from . import events        # events._get_function_source()
+from . import futures       # 关键对象 futures.Future
 from .log import logger
 
 
@@ -54,6 +56,15 @@ _YIELD_FROM_BUG = has_yield_from_bug()
 del has_yield_from_bug
 
 
+#########################################
+#             包裹协程对象
+#
+# 说明:
+#   - 调试模式下使用
+#   - 类装饰器
+#   - 生成器实现
+#
+#########################################
 class CoroWrapper:
     # Wrapper for coroutine object in _DEBUG mode.
 
@@ -127,6 +138,12 @@ class CoroWrapper:
             logger.error(msg)
 
 
+#########################################
+#             协程装饰器
+#
+# 说明:
+#
+#########################################
 def coroutine(func):
     """Decorator to mark coroutines.
 
@@ -138,17 +155,23 @@ def coroutine(func):
     else:
         @functools.wraps(func)
         def coro(*args, **kw):
-            res = func(*args, **kw)
+            res = func(*args, **kw)    # 执行被包裹的方法
+
+            #
+            # res 返回值类型判断
+            #   - futures.Future 对象
+            #
             if isinstance(res, futures.Future) or inspect.isgenerator(res):
-                res = yield from res
+                res = yield from res     # 异步返回: 被包裹方法执行结果
             return res
 
-    if not _DEBUG:
+    if not _DEBUG:                # 非调试模式
         wrapper = coro
-    else:
+    else:                         # 调试模式
         @functools.wraps(func)
         def wrapper(*args, **kwds):
-            w = CoroWrapper(coro(*args, **kwds), func)
+            w = CoroWrapper(coro(*args, **kwds), func)   # 协程包裹:
+
             if w._source_traceback:
                 del w._source_traceback[-1]
             w.__name__ = func.__name__
@@ -161,6 +184,9 @@ def coroutine(func):
     return wrapper
 
 
+#
+# 是否是协程方法(被协程装饰器包裹的方法):
+#
 def iscoroutinefunction(func):
     """Return True if func is a decorated coroutine function."""
     return getattr(func, '_is_coroutine', False)
@@ -168,6 +194,10 @@ def iscoroutinefunction(func):
 
 _COROUTINE_TYPES = (types.GeneratorType, CoroWrapper)
 
+
+#
+# 是否是协程对象:
+#
 def iscoroutine(obj):
     """Return True if obj is a coroutine object."""
     return isinstance(obj, _COROUTINE_TYPES)
@@ -180,6 +210,9 @@ def _format_coroutine(coro):
     filename = coro.gi_code.co_filename
     if (isinstance(coro, CoroWrapper)
     and not inspect.isgeneratorfunction(coro.func)):
+        #
+        # 事件集
+        #
         filename, lineno = events._get_function_source(coro.func)
         if coro.gi_frame is None:
             coro_repr = ('%s() done, defined at %s:%s'
