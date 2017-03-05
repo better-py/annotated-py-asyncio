@@ -200,15 +200,26 @@ class AbstractServer:
         return NotImplemented
 
 
+#
+# 抽象接口基类: 事件循环
+#   - 本类自定义待实现的接口
+#   - 子类实现之
+#
 class AbstractEventLoop:
     """Abstract event loop."""
 
     # Running and stopping the event loop.
 
+    #
+    # 永远执行, 直到主动发起结束
+    #
     def run_forever(self):
         """Run the event loop until stop() is called."""
         raise NotImplementedError
 
+    #
+    # 执行, 直到完成
+    #
     def run_until_complete(self, future):
         """Run the event loop until a Future is done.
 
