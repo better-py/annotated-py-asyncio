@@ -65,9 +65,15 @@ class EchoClient(asyncio.Protocol):
         asyncio.get_event_loop().stop()
 
 
+#
+# 启动一个客户端
+#
 def start_client(loop, host, port):
+    #
+    # Task 对象
+    #
     t = asyncio.Task(loop.create_connection(EchoClient, host, port))
-    loop.run_until_complete(t)
+    loop.run_until_complete(t)     # 启动
 
 
 def start_server(loop, host, port):
@@ -116,12 +122,12 @@ if __name__ == '__main__':
             loop.add_signal_handler(signal.SIGINT, loop.stop)
 
         if args.server:
-            server = start_server(loop, args.host, args.port)
+            server = start_server(loop, args.host, args.port)     # 启动服务器
         else:
-            start_client(loop, args.host, args.port)
+            start_client(loop, args.host, args.port)              # 启动客户端
 
         try:
-            loop.run_forever()
+            loop.run_forever()       # 启动
         finally:
             if args.server:
                 server.close()
