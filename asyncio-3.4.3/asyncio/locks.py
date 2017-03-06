@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+
 """Synchronization primitives."""
 
 __all__ = ['Lock', 'Event', 'Condition', 'Semaphore', 'BoundedSemaphore']
@@ -9,6 +13,13 @@ from . import futures
 from .coroutines import coroutine
 
 
+#########################################
+#             同步原语:
+#
+#
+#########################################
+
+# 上下文管理:
 class _ContextManager:
     """Context manager.
 
@@ -39,6 +50,7 @@ class _ContextManager:
             self._lock = None  # Crudely prevent reuse.
 
 
+# 锁
 class Lock:
     """Primitive lock objects.
 
@@ -179,6 +191,7 @@ class Lock:
         return _ContextManager(self)
 
 
+# 事件:
 class Event:
     """Asynchronous equivalent to threading.Event.
 
@@ -245,6 +258,7 @@ class Event:
             self._waiters.remove(fut)
 
 
+# 条件原语:
 class Condition:
     """Asynchronous equivalent to threading.Condition.
 
@@ -368,6 +382,7 @@ class Condition:
         return _ContextManager(self)
 
 
+# 信号量机制:
 class Semaphore:
     """A Semaphore implementation.
 
