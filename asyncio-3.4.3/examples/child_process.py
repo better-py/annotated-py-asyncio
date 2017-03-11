@@ -2,8 +2,13 @@
 Example of asynchronous interaction with a child python process.
 
 This example shows how to attach an existing Popen object and use the low level
-transport-protocol API. See shell.py and subprocess_shell.py for higher level
-examples.
+transport-protocol API. 
+
+# 示例对比:
+    - shell.py
+    - subprocess_shell.py
+    
+See shell.py and subprocess_shell.py for higher level examples.
 """
 
 import os
