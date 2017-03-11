@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """Base implementation of event loop.
 
 The event loop can be broken up into a multiplexer (the part
@@ -49,6 +52,7 @@ _MIN_SCHEDULED_TIMER_HANDLES = 100
 # Minimum fraction of _scheduled timer handles that are cancelled
 # before cleanup of cancelled handles is performed.
 _MIN_CANCELLED_TIMER_HANDLES_FRACTION = 0.5
+
 
 def _format_handle(handle):
     cb = handle._callback
