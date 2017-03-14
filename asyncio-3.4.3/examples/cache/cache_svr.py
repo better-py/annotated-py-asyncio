@@ -224,8 +224,12 @@ def main():
     sslctx = None
     if args.tls:
         import ssl
+
         # TODO: take cert/key from args as well.
-        here = os.path.join(os.path.dirname(__file__), '..', 'tests')
+        #   - 目录调整, 加了一级目录
+        #
+        # here = os.path.join(os.path.dirname(__file__), '..', 'tests')
+        here = os.path.join(os.path.dirname(__file__), '..', '..', 'tests')
         sslctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         sslctx.options |= ssl.OP_NO_SSLv2
         sslctx.load_cert_chain(
