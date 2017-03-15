@@ -31,8 +31,11 @@ import traceback
 import sys
 import warnings
 
-from . import coroutines
-from . import events
+#
+# 项目内依赖:
+#
+from . import coroutines   # 协程
+from . import events       # 事件
 from . import futures
 from . import tasks
 from .coroutines import coroutine
@@ -43,6 +46,9 @@ __all__ = ['BaseEventLoop']
 
 
 # Argument for default thread pool executor creation.
+#
+# 默认线程池 worker 数目
+#
 _MAX_WORKERS = 5
 
 # Minimum number of _scheduled timer handles before cleanup of
@@ -137,15 +143,20 @@ def _run_until_complete_cb(fut):
     _raise_stop_error()
 
 
+#########################################
+#             SERVER 类
 #
-# SERVER 类:
+# 说明:
+#   - 异步实现
+#   - 依赖: futures.Future() 实现
 #
+#########################################
 class Server(events.AbstractServer):
 
     def __init__(self, loop, sockets):
         self._loop = loop
         self.sockets = sockets
-        self._active_count = 0
+        self._active_count = 0      # 激活数目
         self._waiters = []
 
     def __repr__(self):
@@ -153,47 +164,62 @@ class Server(events.AbstractServer):
 
     def _attach(self):
         assert self.sockets is not None
-        self._active_count += 1
+        self._active_count += 1     # 激活数目+1
 
     def _detach(self):
         assert self._active_count > 0
-        self._active_count -= 1
-        if self._active_count == 0 and self.sockets is None:
-            self._wakeup()
+        self._active_count -= 1     # 激活数目-1
 
+        if self._active_count == 0 and self.sockets is None:
+            self._wakeup()          # 唤醒
+
+    #
+    # 关闭:
+    #
     def close(self):
         sockets = self.sockets
         if sockets is None:
             return
         self.sockets = None
-        for sock in sockets:
-            self._loop._stop_serving(sock)
-        if self._active_count == 0:
-            self._wakeup()
 
+        for sock in sockets:
+            self._loop._stop_serving(sock)    # 关闭socket
+
+        if self._active_count == 0:
+            self._wakeup()     # 唤醒
+
+    #
     # 唤醒:
+    #
     def _wakeup(self):
         waiters = self._waiters
         self._waiters = None
+
         for waiter in waiters:
             if not waiter.done():
                 waiter.set_result(waiter)
 
     # 协程:
     #   - 等待关闭
+    #   - 异步返回
+    #   - 依赖: futures.Future() 实现
     #
     @coroutine
     def wait_closed(self):
         if self.sockets is None or self._waiters is None:
             return
-        waiter = futures.Future(loop=self._loop)     #
+
+        waiter = futures.Future(loop=self._loop)     # future 对象
         self._waiters.append(waiter)
-        yield from waiter
+        yield from waiter            # 异步返回
 
 
+#########################################
+#             基类: 事件循环
 #
-# 事件循环基类:
+# 说明:
 #
+#########################################
 class BaseEventLoop(events.AbstractEventLoop):
 
     def __init__(self):
@@ -223,22 +249,22 @@ class BaseEventLoop(events.AbstractEventLoop):
     #
     # 创建任务:
     #   - 定期执行一个协程对象.
-    #   - 返回一个任务对象.
+    #   - 返回一个任务对象(本质是 futures.Future() 对象)
     #
     def create_task(self, coro):
         """Schedule a coroutine object.
 
         Return a task object.
         """
-        self._check_closed()
+        self._check_closed()   # 检查
 
         #
         # 构建 task 对象
         #
-        task = tasks.Task(coro, loop=self)
+        task = tasks.Task(coro, loop=self)    # Task 基类: futures.Future()
         if task._source_traceback:
             del task._source_traceback[-1]
-        return task
+        return task    # 本质返回一个futures.Future()对象
 
     def _make_socket_transport(self, sock, protocol, waiter=None, *,
                                extra=None, server=None):
@@ -286,6 +312,9 @@ class BaseEventLoop(events.AbstractEventLoop):
         """Process selector events."""
         raise NotImplementedError
 
+    #
+    # 检查:
+    #
     def _check_closed(self):
         if self._closed:
             raise RuntimeError('Event loop is closed')
