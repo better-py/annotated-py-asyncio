@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """A Future class similar to the one in PEP 3148."""
 
 __all__ = ['CancelledError', 'TimeoutError',
@@ -11,6 +14,10 @@ import reprlib
 import sys
 import traceback
 
+
+#
+# 唯一依赖:
+#
 from . import events       # 注意
 
 # States for Future.
@@ -116,7 +123,10 @@ class _TracebackLogger:
 #
 # 说明:
 #   - 关键类
-#   - 实现协程装饰器, 依赖此类
+#   - 其他模块依赖此模块:
+#       - BaseEventLoop() 实现, 依赖此模块
+#       - Task() 实现, 依赖此模块
+#       - 实现协程装饰器, 依赖此模块
 #
 #########################################
 class Future:
@@ -156,10 +166,12 @@ class Future:
         the default event loop.
         """
         if loop is None:
-            self._loop = events.get_event_loop()
+            self._loop = events.get_event_loop()      # 事件循环
         else:
             self._loop = loop
-        self._callbacks = []
+
+        self._callbacks = []     # 回调
+
         if self._loop.get_debug():
             self._source_traceback = traceback.extract_stack(sys._getframe(1))
 
@@ -204,8 +216,8 @@ class Future:
         return '<%s %s>' % (self.__class__.__name__, ' '.join(info))
 
     # On Python 3.3 and older, objects with a destructor part of a reference
-    # cycle are never destroyed. It's not more the case on Python 3.4 thanks
-    # to the PEP 442.
+    # cycle are never destroyed.
+    # It's not more the case on Python 3.4 thanks to the PEP 442.
     if _PY34:
         def __del__(self):
             if not self._log_traceback:
@@ -223,6 +235,13 @@ class Future:
                 context['source_traceback'] = self._source_traceback
             self._loop.call_exception_handler(context)
 
+    ############################################################
+    #                    接口定义
+    ############################################################
+
+    # 取消 future 对象
+    #   - 若 future 已完成, 或者已取消, 返回 FALSE
+    #   - 否则, 改变 future 状态为可取消, 并计划执行回调
     def cancel(self):
         """Cancel the future and schedule callbacks.
 
@@ -232,30 +251,47 @@ class Future:
         """
         if self._state != _PENDING:
             return False
-        self._state = _CANCELLED
-        self._schedule_callbacks()
+        self._state = _CANCELLED    # 状态置为: 可取消
+        self._schedule_callbacks()  # 计划执行回调
         return True
 
+    #
+    # 计划执行回调:
+    #   - 请求事件循环, 去调用所有的回调
+    #   - 这些回调, 原本计划为立即被调用, 同时从回调列表中清除
+    #
     def _schedule_callbacks(self):
         """Internal: Ask the event loop to call all callbacks.
 
         The callbacks are scheduled to be called as soon as possible. Also
         clears the callback list.
         """
-        callbacks = self._callbacks[:]
+        callbacks = self._callbacks[:]   # 临时变量, 暂存回调列表
         if not callbacks:
             return
 
-        self._callbacks[:] = []
-        for callback in callbacks:
-            self._loop.call_soon(callback, self)
+        self._callbacks[:] = []          # 清空回调列表
 
+        #
+        # 执行所有的回调
+        #
+        for callback in callbacks:
+            self._loop.call_soon(callback, self)   # 计划执行回调
+
+    #
+    # 状态判断:
+    #   - future 对象: 取消状态
+    #
     def cancelled(self):
         """Return True if the future was cancelled."""
         return self._state == _CANCELLED
 
     # Don't implement running(); see http://bugs.python.org/issue18699
 
+    #
+    # 状态判断:
+    #   - future 对象: 完成状态
+    #
     def done(self):
         """Return True if the future is done.
 
@@ -264,43 +300,65 @@ class Future:
         """
         return self._state != _PENDING
 
+    #
+    # future 的返回结果
+    #
     def result(self):
         """Return the result this future represents.
 
-        If the future has been cancelled, raises CancelledError.  If the
-        future's result isn't yet available, raises InvalidStateError.  If
-        the future is done and has an exception set, this exception is raised.
+        3种情况:
+            If the future has been cancelled, raises CancelledError.
+            If the future's result isn't yet available, raises InvalidStateError.
+            If the future is done and has an exception set, this exception is raised.
         """
+        # 异常: future 已取消
         if self._state == _CANCELLED:
             raise CancelledError
+
+        # 异常: future 暂不可获得
         if self._state != _FINISHED:
             raise InvalidStateError('Result is not ready.')
+
         self._log_traceback = False
         if self._tb_logger is not None:
             self._tb_logger.clear()
             self._tb_logger = None
-        if self._exception is not None:
-            raise self._exception
-        return self._result
 
+        # 异常: future 已完成
+        if self._exception is not None:
+            raise self._exception   # 异常结果
+        return self._result         # future 已完成, 正常返回结果
+
+    #
+    # future 返回一个异常
+    #   - 触发本异常的条件: future 完成状态下
+    #
     def exception(self):
         """Return the exception that was set on this future.
 
         The exception (or None if no exception was set) is returned only if
-        the future is done.  If the future has been cancelled, raises
-        CancelledError.  If the future isn't done yet, raises
-        InvalidStateError.
+        the future is done.
+
+        If the future has been cancelled, raises CancelledError.
+        If the future isn't done yet, raises InvalidStateError.
         """
+        # 异常: 已取消
         if self._state == _CANCELLED:
             raise CancelledError
+
+        # 异常: 暂未完成
         if self._state != _FINISHED:
             raise InvalidStateError('Exception is not set.')
+
         self._log_traceback = False
         if self._tb_logger is not None:
             self._tb_logger.clear()
             self._tb_logger = None
-        return self._exception
+        return self._exception     # 返回异常
 
+    #
+    # 当 future 完成时, 添加一个回调等待执行
+    #
     def add_done_callback(self, fn):
         """Add a callback to be run when the future becomes done.
 
@@ -309,31 +367,40 @@ class Future:
         scheduled with call_soon.
         """
         if self._state != _PENDING:
-            self._loop.call_soon(fn, self)
+            self._loop.call_soon(fn, self)  # 执行
         else:
-            self._callbacks.append(fn)
+            self._callbacks.append(fn)      # 添加一个回调
 
     # New method not in PEP 3148.
 
+    #
+    # 删除回调:
+    #
     def remove_done_callback(self, fn):
         """Remove all instances of a callback from the "call when done" list.
 
         Returns the number of callbacks removed.
         """
-        filtered_callbacks = [f for f in self._callbacks if f != fn]
+        filtered_callbacks = [f for f in self._callbacks if f != fn]     # 过滤回调
         removed_count = len(self._callbacks) - len(filtered_callbacks)
         if removed_count:
-            self._callbacks[:] = filtered_callbacks
+            self._callbacks[:] = filtered_callbacks    # 更新原回调列表为: 新过滤的
         return removed_count
 
     # So-called internal methods (note: no set_running_or_notify_cancel()).
 
+    #
+    # 当 future 未取消时, 设置 result 结果
+    #
     def _set_result_unless_cancelled(self, result):
         """Helper setting the result only if the future was not cancelled."""
         if self.cancelled():
             return
-        self.set_result(result)
+        self.set_result(result)   # 设置future返回结果
 
+    #
+    # 标记 future 对象为完成状态, 并设置其返回结果
+    #
     def set_result(self, result):
         """Mark the future done and set its result.
 
@@ -342,10 +409,14 @@ class Future:
         """
         if self._state != _PENDING:
             raise InvalidStateError('{}: {!r}'.format(self._state, self))
-        self._result = result
-        self._state = _FINISHED
-        self._schedule_callbacks()
 
+        self._result = result        # 返回结果
+        self._state = _FINISHED      # future 对象: 完成状态
+        self._schedule_callbacks()   # 按计划执行回调
+
+    #
+    # 标记 future 对象为完成状态, 并触发一个异常
+    #
     def set_exception(self, exception):
         """Mark the future done and set an exception.
 
@@ -356,9 +427,11 @@ class Future:
             raise InvalidStateError('{}: {!r}'.format(self._state, self))
         if isinstance(exception, type):
             exception = exception()
-        self._exception = exception
-        self._state = _FINISHED
-        self._schedule_callbacks()
+
+        self._exception = exception   # 返回结果: 异常
+        self._state = _FINISHED       # future 对象: 完成状态
+        self._schedule_callbacks()    # 按计划执行回调
+
         if _PY34:
             self._log_traceback = True
         else:
@@ -369,6 +442,9 @@ class Future:
 
     # Truly internal methods.
 
+    #
+    # 从另外一个 future 对象拷贝状态
+    #
     def _copy_state(self, other):
         """Internal helper to copy state from another Future.
 
@@ -385,33 +461,44 @@ class Future:
             if exception is not None:
                 self.set_exception(exception)
             else:
-                result = other.result()
-                self.set_result(result)
+                result = other.result()    # 取结果
+                self.set_result(result)    # 设置结果
 
+    #
+    # 迭代:
+    #
     def __iter__(self):
         if not self.done():
-            self._blocking = True
+            self._blocking = True   # 阻塞
             yield self  # This tells Task to wait for completion.
         assert self.done(), "yield from wasn't used with future"
-        return self.result()  # May raise too.
+        return self.result()  # May raise too.  返回
 
 
+#
+# 包裹 future 对象
+#
 def wrap_future(fut, *, loop=None):
     """Wrap concurrent.futures.Future object."""
     if isinstance(fut, Future):
         return fut
     assert isinstance(fut, concurrent.futures.Future), \
         'concurrent.futures.Future is expected, got {!r}'.format(fut)
+
     if loop is None:
         loop = events.get_event_loop()
-    new_future = Future(loop=loop)
+    new_future = Future(loop=loop)     # 创建future对象
 
     def _check_cancel_other(f):
         if f.cancelled():
             fut.cancel()
 
-    new_future.add_done_callback(_check_cancel_other)
+    new_future.add_done_callback(_check_cancel_other)    # 添加回调
+
+    #
+    # 线程安全
+    #
     fut.add_done_callback(
         lambda future: loop.call_soon_threadsafe(
             new_future._copy_state, future))
-    return new_future
+    return new_future    # 返回future对象
