@@ -69,7 +69,7 @@ def _format_callback(func, args, suffix=''):
     if suffix:
         func_repr += suffix
 
-    source = _get_function_source(func)
+    source = _get_function_source(func)     # 获取方法源
     if source:
         func_repr += ' at %s:%s' % source
     return func_repr
@@ -84,7 +84,7 @@ class Handle:
     def __init__(self, callback, args, loop):
         assert not isinstance(callback, Handle), 'A Handle is not a callback'
         self._loop = loop
-        self._callback = callback
+        self._callback = callback    # 回调
         self._args = args
         self._cancelled = False
         self._repr = None
@@ -121,20 +121,25 @@ class Handle:
             self._callback = None
             self._args = None
 
+    #
+    # 执行:
+    #   - 引用处: base_events.BaseEventLoop._run_once()
+    #
     def _run(self):
         try:
-            self._callback(*self._args)
+            self._callback(*self._args)   # 回调
         except Exception as exc:
-            cb = _format_callback(self._callback, self._args)
+            cb = _format_callback(self._callback, self._args)    # 回调
             msg = 'Exception in callback {}'.format(cb)
             context = {
                 'message': msg,
                 'exception': exc,
                 'handle': self,
             }
+
             if self._source_traceback:
                 context['source_traceback'] = self._source_traceback
-            self._loop.call_exception_handler(context)
+            self._loop.call_exception_handler(context)          # 异常处理
         self = None  # Needed to break cycles when an exception occurs.
 
 
@@ -208,8 +213,8 @@ class AbstractServer:
 
 #
 # 抽象接口基类: 事件循环
-#   - 本类自定义待实现的接口
-#   - 子类实现之
+#   - 本类自定义待实现的接口, 由子类实现
+#   - 子类: base_events.BaseEventLoop()
 #
 class AbstractEventLoop:
     """Abstract event loop."""
@@ -261,7 +266,10 @@ class AbstractEventLoop:
         raise NotImplementedError
 
     # Methods scheduling callbacks.  All these return Handles.
-
+    #
+    # 定期执行的回调函数:
+    #   - 返回 handles
+    #
     def _timer_handle_cancelled(self, handle):
         """Notification that a TimerHandle has been cancelled."""
         raise NotImplementedError
@@ -279,12 +287,18 @@ class AbstractEventLoop:
         raise NotImplementedError
 
     # Method scheduling a coroutine object: create a task.
-
+    #
+    # 定期执行的协程对象:
+    #   - 创建一个任务
+    #
     def create_task(self, coro):
         raise NotImplementedError
 
     # Methods for interacting with threads.
 
+    #
+    # 推迟运行: 线程安全
+    #
     def call_soon_threadsafe(self, callback, *args):
         raise NotImplementedError
 
@@ -295,18 +309,31 @@ class AbstractEventLoop:
         raise NotImplementedError
 
     # Network I/O methods returning Futures.
+    #
+    # 网络 IO 方法: 返回 future 对象
+    #
 
+    # 获取地址信息:
     def getaddrinfo(self, host, port, *, family=0, type=0, proto=0, flags=0):
         raise NotImplementedError
 
+    # 获取名称信息:
     def getnameinfo(self, sockaddr, flags=0):
         raise NotImplementedError
 
+    #
+    # 创建连接:
+    #
     def create_connection(self, protocol_factory, host=None, port=None, *,
                           ssl=None, family=0, proto=0, flags=0, sock=None,
                           local_addr=None, server_hostname=None):
         raise NotImplementedError
 
+    #
+    # 创建 server:
+    #   - 协程, 创建一个 TCP Server
+    #   - 返回值: 一个 Server 对象
+    #
     def create_server(self, protocol_factory, host=None, port=None, *,
                       family=socket.AF_UNSPEC, flags=socket.AI_PASSIVE,
                       sock=None, backlog=100, ssl=None, reuse_address=None):
@@ -341,6 +368,9 @@ class AbstractEventLoop:
         """
         raise NotImplementedError
 
+    #
+    # 创建一个 UNIX 连接:
+    #
     def create_unix_connection(self, protocol_factory, path, *,
                                ssl=None, sock=None,
                                server_hostname=None):
@@ -457,6 +487,9 @@ class AbstractEventLoop:
     def default_exception_handler(self, context):
         raise NotImplementedError
 
+    #
+    # 异常处理接口
+    #
     def call_exception_handler(self, context):
         raise NotImplementedError
 
@@ -586,6 +619,7 @@ _lock = threading.Lock()
 #
 def _init_event_loop_policy():
     global _event_loop_policy
+
     with _lock:    # 线程锁
         if _event_loop_policy is None:  # pragma: no branch
             from . import DefaultEventLoopPolicy
