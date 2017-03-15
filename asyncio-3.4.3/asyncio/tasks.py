@@ -22,9 +22,14 @@ from .coroutines import coroutine
 _PY34 = (sys.version_info >= (3, 4))
 
 
+#########################################
+#             Task 类
 #
-# Task 类:
+# 说明:
+#   - 注意 Task 基类: futures.Future
+#   - 返回一个 futures.Future() 对象
 #
+#########################################
 class Task(futures.Future):
     """A coroutine wrapped in a Future."""
 
@@ -42,12 +47,20 @@ class Task(futures.Future):
 
     # Dictionary containing tasks that are currently active in
     # all running event loops.  {EventLoop: Task}
+    #
+    # 事件循环中, 激活的任务
+    #
     _current_tasks = {}
 
     # If False, don't log a message if the task is destroyed whereas its
     # status is still pending
     _log_destroy_pending = True
 
+    #
+    # 返回事件循环中当前正在执行的 task
+    #   - 默认返回当前事件循环中的正在执行的 task
+    #   - 若调用的不是 task 上下文, 返回空.
+    #
     @classmethod
     def current_task(cls, loop=None):
         """Return the currently running task in an event loop or None.
@@ -60,6 +73,10 @@ class Task(futures.Future):
             loop = events.get_event_loop()
         return cls._current_tasks.get(loop)
 
+    #
+    # 返回所有事件循环的 task 集合
+    #   - 默认返回当前事件循环的所有 task
+    #
     @classmethod
     def all_tasks(cls, loop=None):
         """Return a set of all tasks for an event loop.
@@ -71,14 +88,15 @@ class Task(futures.Future):
         return {t for t in cls._all_tasks if t._loop is loop}
 
     def __init__(self, coro, *, loop=None):
-        assert coroutines.iscoroutine(coro), repr(coro)
+        assert coroutines.iscoroutine(coro), repr(coro)   # 协程判断
         super().__init__(loop=loop)
+
         if self._source_traceback:
             del self._source_traceback[-1]
         self._coro = iter(coro)  # Use the iterator just in case.
         self._fut_waiter = None
         self._must_cancel = False
-        self._loop.call_soon(self._step)
+        self._loop.call_soon(self._step)       # 调用: 延迟执行, 注意 step 方法
         self.__class__._all_tasks.add(self)
 
     # On Python 3.3 or older, objects with a destructor that are part of a
@@ -110,6 +128,9 @@ class Task(futures.Future):
             info.insert(2, 'wait_for=%r' % self._fut_waiter)
         return info
 
+    #
+    # 协程调用栈信息:
+    #
     def get_stack(self, *, limit=None):
         """Return the list of stack frames for this task's coroutine.
 
@@ -153,6 +174,9 @@ class Task(futures.Future):
                 tb = tb.tb_next
         return frames
 
+    #
+    # 协程调用栈信息:
+    #
     def print_stack(self, *, limit=None, file=None):
         """Print the stack or traceback for this task's coroutine.
 
@@ -220,6 +244,9 @@ class Task(futures.Future):
         self._must_cancel = True
         return True
 
+    #
+    # 关键方法:
+    #
     def _step(self, value=None, exc=None):
         assert not self.done(), \
             '_step(): already done: {!r}, {!r}, {!r}'.format(self, value, exc)
@@ -231,14 +258,15 @@ class Task(futures.Future):
         self._fut_waiter = None
 
         self.__class__._current_tasks[self._loop] = self
+
         # Call either coro.throw(exc) or coro.send(value).
         try:
             if exc is not None:
                 result = coro.throw(exc)
             elif value is not None:
-                result = coro.send(value)
+                result = coro.send(value)     # yield 生成器
             else:
-                result = next(coro)
+                result = next(coro)           # yield 生成器
         except StopIteration as exc:
             self.set_result(exc.value)
         except futures.CancelledError as exc:
@@ -285,9 +313,12 @@ class Task(futures.Future):
             self.__class__._current_tasks.pop(self._loop)
             self = None  # Needed to break cycles when an exception occurs.
 
+    #
+    # 唤醒
+    #
     def _wakeup(self, future):
         try:
-            value = future.result()
+            value = future.result()      # future 对象
         except Exception as exc:
             # This may also be a cancellation.
             self._step(None, exc)
@@ -302,7 +333,9 @@ FIRST_COMPLETED = concurrent.futures.FIRST_COMPLETED
 FIRST_EXCEPTION = concurrent.futures.FIRST_EXCEPTION
 ALL_COMPLETED = concurrent.futures.ALL_COMPLETED
 
-
+#
+# 协程:
+#
 @coroutine
 def wait(fs, *, loop=None, timeout=None, return_when=ALL_COMPLETED):
     """Wait for the Futures and coroutines given by fs to complete.
@@ -330,9 +363,12 @@ def wait(fs, *, loop=None, timeout=None, return_when=ALL_COMPLETED):
     if loop is None:
         loop = events.get_event_loop()
 
+    #
+    # futures.Future() 对象集合
+    #
     fs = {async(f, loop=loop) for f in set(fs)}
 
-    return (yield from _wait(fs, timeout, return_when, loop))
+    return (yield from _wait(fs, timeout, return_when, loop))    # 协程生成
 
 
 def _release_waiter(waiter, *args):
@@ -360,17 +396,24 @@ def wait_for(fut, timeout, *, loop=None):
     if timeout is None:
         return (yield from fut)
 
+    #
+    # futures.Future() 对象
+    #
     waiter = futures.Future(loop=loop)
     timeout_handle = loop.call_later(timeout, _release_waiter, waiter)
+
+    #
+    # 回调:
+    #
     cb = functools.partial(_release_waiter, waiter)
 
-    fut = async(fut, loop=loop)
-    fut.add_done_callback(cb)
+    fut = async(fut, loop=loop)   # futures.Future() 对象
+    fut.add_done_callback(cb)     # 添加回调
 
     try:
         # wait until the future completes or the timeout
         try:
-            yield from waiter
+            yield from waiter     # 异步返回
         except futures.CancelledError:
             fut.remove_done_callback(cb)
             fut.cancel()
@@ -386,6 +429,10 @@ def wait_for(fut, timeout, *, loop=None):
         timeout_handle.cancel()
 
 
+#
+# 协程生成:
+#   - fs: futures.Future()对象集合
+#
 @coroutine
 def _wait(fs, timeout, return_when, loop):
     """Internal helper for wait() and _wait_for().
@@ -393,7 +440,9 @@ def _wait(fs, timeout, return_when, loop):
     The fs argument must be a collection of Futures.
     """
     assert fs, 'Set of Futures is empty.'
-    waiter = futures.Future(loop=loop)
+
+    waiter = futures.Future(loop=loop)    # future 对象
+
     timeout_handle = None
     if timeout is not None:
         timeout_handle = loop.call_later(timeout, _release_waiter, waiter)
@@ -412,8 +461,11 @@ def _wait(fs, timeout, return_when, loop):
                 waiter.set_result(None)
 
     for f in fs:
-        f.add_done_callback(_on_completion)
+        f.add_done_callback(_on_completion)    # 添加回调
 
+    #
+    # 异步
+    #
     try:
         yield from waiter
     finally:
@@ -422,7 +474,7 @@ def _wait(fs, timeout, return_when, loop):
 
     done, pending = set(), set()
     for f in fs:
-        f.remove_done_callback(_on_completion)
+        f.remove_done_callback(_on_completion)    # 删除回调
         if f.done():
             done.add(f)
         else:
@@ -452,17 +504,31 @@ def as_completed(fs, *, loop=None, timeout=None):
     if isinstance(fs, futures.Future) or coroutines.iscoroutine(fs):
         raise TypeError("expect a list of futures, not %s" % type(fs).__name__)
     loop = loop if loop is not None else events.get_event_loop()
+
+    #
+    # futures.Future()对象集合
+    #
     todo = {async(f, loop=loop) for f in set(fs)}
+
     from .queues import Queue  # Import here to avoid circular import problem.
+    #
+    # 队列
+    #
     done = Queue(loop=loop)
     timeout_handle = None
 
+    #
+    # 超时:
+    #
     def _on_timeout():
         for f in todo:
             f.remove_done_callback(_on_completion)
             done.put_nowait(None)  # Queue a dummy value for _wait_for_one().
         todo.clear()  # Can't do todo.remove(f) in the loop.
 
+    #
+    # 完成
+    #
     def _on_completion(f):
         if not todo:
             return  # _on_timeout() was here first.
@@ -471,8 +537,14 @@ def as_completed(fs, *, loop=None, timeout=None):
         if not todo and timeout_handle is not None:
             timeout_handle.cancel()
 
+    #
+    # 协程:
+    #
     @coroutine
     def _wait_for_one():
+        #
+        # 异步返回
+        #
         f = yield from done.get()
         if f is None:
             # Dummy value from _on_timeout().
@@ -483,22 +555,37 @@ def as_completed(fs, *, loop=None, timeout=None):
         f.add_done_callback(_on_completion)
     if todo and timeout is not None:
         timeout_handle = loop.call_later(timeout, _on_timeout)
+
+    #
+    # 异步返回:
+    #
     for _ in range(len(todo)):
-        yield _wait_for_one()
+        yield _wait_for_one()    # 协程调用
 
 
+#
+# 协程: 休眠
+#
 @coroutine
 def sleep(delay, result=None, *, loop=None):
     """Coroutine that completes after a given time (in seconds)."""
+    #
+    # futures.Future() 最新
+    #
     future = futures.Future(loop=loop)
+
     h = future._loop.call_later(delay,
                                 future._set_result_unless_cancelled, result)
     try:
-        return (yield from future)
+        return (yield from future)    # 异步返回
     finally:
         h.cancel()
 
 
+#
+# 在future中, 包裹一个协程
+#   - 返回 task[本质是 futures.Future() 对象]
+#
 def async(coro_or_future, *, loop=None):
     """Wrap a coroutine in a future.
 
@@ -508,13 +595,14 @@ def async(coro_or_future, *, loop=None):
         if loop is not None and loop is not coro_or_future._loop:
             raise ValueError('loop argument must agree with Future')
         return coro_or_future
-    elif coroutines.iscoroutine(coro_or_future):
+    elif coroutines.iscoroutine(coro_or_future):     # 协程
         if loop is None:
             loop = events.get_event_loop()
-        task = loop.create_task(coro_or_future)
+
+        task = loop.create_task(coro_or_future)     # 创建一个task, 返回 futures.Future() 对象
         if task._source_traceback:
             del task._source_traceback[-1]
-        return task
+        return task    # 返回task(futures.Future()对象)
     else:
         raise TypeError('A Future or coroutine is required')
 
