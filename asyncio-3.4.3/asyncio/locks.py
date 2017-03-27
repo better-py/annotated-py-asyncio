@@ -6,7 +6,7 @@
 
 __all__ = ['Lock', 'Event', 'Condition', 'Semaphore', 'BoundedSemaphore']
 
-import collections
+import collections       # 数据类型: 双端队列, deque是为了高效实现插入和删除操作的双向列表，适合用于队列和栈
 
 from . import events
 from . import futures
@@ -15,7 +15,12 @@ from .coroutines import coroutine
 
 #########################################
 #             同步原语:
-#
+# 说明:
+#   - 几种同步机制:
+#       - 锁(lock)
+#       - 事件(event)
+#       - 条件原语(condition)
+#       - 信号量(semaphore)
 #
 #########################################
 
@@ -45,7 +50,7 @@ class _ContextManager:
 
     def __exit__(self, *args):
         try:
-            self._lock.release()
+            self._lock.release()         # 释放锁
         finally:
             self._lock = None  # Crudely prevent reuse.
 
@@ -106,8 +111,9 @@ class Lock:
     """
 
     def __init__(self, *, loop=None):
-        self._waiters = collections.deque()
-        self._locked = False
+        self._waiters = collections.deque()     # collections.deque: 双端队列，可以快速的从另外一侧追加和推出对象
+        self._locked = False                    # 锁状态
+
         if loop is not None:
             self._loop = loop
         else:
@@ -120,10 +126,16 @@ class Lock:
             extra = '{},waiters:{}'.format(extra, len(self._waiters))
         return '<{} [{}]>'.format(res[1:-1], extra)
 
+    #
+    # 锁状态:
+    #
     def locked(self):
         """Return True if lock is acquired."""
         return self._locked
 
+    #
+    # 申请锁:
+    #
     @coroutine
     def acquire(self):
         """Acquire a lock.
@@ -131,19 +143,26 @@ class Lock:
         This method blocks until the lock is unlocked, then sets it to
         locked and returns True.
         """
-        if not self._waiters and not self._locked:
+        if not self._waiters and not self._locked:     # 队列不空
             self._locked = True
             return True
 
+        #
+        # future 对象
+        #
         fut = futures.Future(loop=self._loop)
-        self._waiters.append(fut)
+        self._waiters.append(fut)        # 入队操作
+
         try:
-            yield from fut
+            yield from fut               # 异步返回 future 对象
             self._locked = True
             return True
         finally:
-            self._waiters.remove(fut)
+            self._waiters.remove(fut)    # 出队操作
 
+    #
+    # 释放锁:
+    #
     def release(self):
         """Release a lock.
 
@@ -158,8 +177,8 @@ class Lock:
         if self._locked:
             self._locked = False
             # Wake up the first waiter who isn't cancelled.
-            for fut in self._waiters:
-                if not fut.done():
+            for fut in self._waiters:        # 遍历双端队列
+                if not fut.done():           # 未完成
                     fut.set_result(True)
                     break
         else:
@@ -174,6 +193,11 @@ class Lock:
         # always raises; that's how the with-statement works.
         pass
 
+    #
+    # 迭代:
+    #   - 异步返回
+    #   - 返回上下文管理
+    #
     def __iter__(self):
         # This is not a coroutine.  It is meant to enable the idiom:
         #
@@ -187,7 +211,7 @@ class Lock:
         #         <block>
         #     finally:
         #         lock.release()
-        yield from self.acquire()
+        yield from self.acquire()          # 异步返回
         return _ContextManager(self)
 
 
@@ -202,8 +226,9 @@ class Event:
     """
 
     def __init__(self, *, loop=None):
-        self._waiters = collections.deque()
+        self._waiters = collections.deque()            # 双端队列
         self._value = False
+
         if loop is not None:
             self._loop = loop
         else:
@@ -220,6 +245,9 @@ class Event:
         """Return True if and only if the internal flag is true."""
         return self._value
 
+    #
+    # 设置:
+    #
     def set(self):
         """Set the internal flag to true. All coroutines waiting for it to
         become true are awakened. Coroutine that call wait() once the flag is
@@ -228,10 +256,13 @@ class Event:
         if not self._value:
             self._value = True
 
-            for fut in self._waiters:
-                if not fut.done():
+            for fut in self._waiters:     # 遍历双端队列
+                if not fut.done():        # 未完成
                     fut.set_result(True)
 
+    #
+    # 清理:
+    #
     def clear(self):
         """Reset the internal flag to false. Subsequently, coroutines calling
         wait() will block until set() is called to set the internal flag
@@ -249,16 +280,20 @@ class Event:
         if self._value:
             return True
 
-        fut = futures.Future(loop=self._loop)
-        self._waiters.append(fut)
+        fut = futures.Future(loop=self._loop)     # future 对象
+        self._waiters.append(fut)                 # 入队
+
         try:
-            yield from fut
+            yield from fut                        # 异步返回
             return True
         finally:
-            self._waiters.remove(fut)
+            self._waiters.remove(fut)             # 出队
 
 
+#
 # 条件原语:
+#   - 依赖 Lock 实现
+#
 class Condition:
     """Asynchronous equivalent to threading.Condition.
 
@@ -276,17 +311,17 @@ class Condition:
             self._loop = events.get_event_loop()
 
         if lock is None:
-            lock = Lock(loop=self._loop)
+            lock = Lock(loop=self._loop)      # 锁
         elif lock._loop is not self._loop:
             raise ValueError("loop argument must agree with lock")
 
         self._lock = lock
         # Export the lock's locked(), acquire() and release() methods.
         self.locked = lock.locked
-        self.acquire = lock.acquire
-        self.release = lock.release
+        self.acquire = lock.acquire    # 申请锁
+        self.release = lock.release    # 释放锁
 
-        self._waiters = collections.deque()
+        self._waiters = collections.deque()     # 双端队列
 
     def __repr__(self):
         res = super().__repr__()
@@ -310,18 +345,18 @@ class Condition:
         if not self.locked():
             raise RuntimeError('cannot wait on un-acquired lock')
 
-        self.release()
+        self.release()                  # 释放锁
         try:
-            fut = futures.Future(loop=self._loop)
-            self._waiters.append(fut)
+            fut = futures.Future(loop=self._loop)    # future 对象
+            self._waiters.append(fut)                # 入队
             try:
-                yield from fut
+                yield from fut                       # 异步返回
                 return True
             finally:
-                self._waiters.remove(fut)
+                self._waiters.remove(fut)            # 出队
 
         finally:
-            yield from self.acquire()
+            yield from self.acquire()    # 申请锁
 
     @coroutine
     def wait_for(self, predicate):
@@ -333,7 +368,7 @@ class Condition:
         """
         result = predicate()
         while not result:
-            yield from self.wait()
+            yield from self.wait()    # 异步返回
             result = predicate()
         return result
 
@@ -353,7 +388,7 @@ class Condition:
             raise RuntimeError('cannot notify on un-acquired lock')
 
         idx = 0
-        for fut in self._waiters:
+        for fut in self._waiters:    # 遍历双端队列
             if idx >= n:
                 break
 
@@ -378,11 +413,13 @@ class Condition:
 
     def __iter__(self):
         # See comment in Lock.__iter__().
-        yield from self.acquire()
-        return _ContextManager(self)
+        yield from self.acquire()      # 申请锁
+        return _ContextManager(self)   # 上下文管理
 
 
+#
 # 信号量机制:
+#
 class Semaphore:
     """A Semaphore implementation.
 
@@ -402,7 +439,8 @@ class Semaphore:
         if value < 0:
             raise ValueError("Semaphore initial value must be >= 0")
         self._value = value
-        self._waiters = collections.deque()
+        self._waiters = collections.deque()    # 双端队列
+
         if loop is not None:
             self._loop = loop
         else:
@@ -420,6 +458,9 @@ class Semaphore:
         """Returns True if semaphore can not be acquired immediately."""
         return self._value == 0
 
+    #
+    # 申请:
+    #
     @coroutine
     def acquire(self):
         """Acquire a semaphore.
@@ -434,23 +475,27 @@ class Semaphore:
             self._value -= 1
             return True
 
-        fut = futures.Future(loop=self._loop)
-        self._waiters.append(fut)
+        fut = futures.Future(loop=self._loop)     # future 对象
+        self._waiters.append(fut)        # 入队
+
         try:
-            yield from fut
+            yield from fut               # 异步返回
             self._value -= 1
             return True
         finally:
-            self._waiters.remove(fut)
+            self._waiters.remove(fut)    # 出队
 
+    #
+    # 释放:
+    #
     def release(self):
         """Release a semaphore, incrementing the internal counter by one.
         When it was zero on entry and another coroutine is waiting for it to
         become larger than zero again, wake up that coroutine.
         """
         self._value += 1
-        for waiter in self._waiters:
-            if not waiter.done():
+        for waiter in self._waiters:      # 遍历双端队列
+            if not waiter.done():         # 未完成
                 waiter.set_result(True)
                 break
 
@@ -461,12 +506,18 @@ class Semaphore:
     def __exit__(self, *args):
         pass
 
+    #
+    # 迭代:
+    #
     def __iter__(self):
         # See comment in Lock.__iter__().
-        yield from self.acquire()
-        return _ContextManager(self)
+        yield from self.acquire()          # 异步返回
+        return _ContextManager(self)       # 上下文管理
 
 
+#
+# 信号量:
+#
 class BoundedSemaphore(Semaphore):
     """A bounded semaphore implementation.
 
@@ -478,7 +529,10 @@ class BoundedSemaphore(Semaphore):
         self._bound_value = value
         super().__init__(value, loop=loop)
 
+    #
+    # 释放:
+    #
     def release(self):
         if self._value >= self._bound_value:
             raise ValueError('BoundedSemaphore released too many times')
-        super().release()
+        super().release()    # 释放
