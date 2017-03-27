@@ -1,10 +1,13 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """Queues"""
 
 __all__ = ['Queue', 'PriorityQueue', 'LifoQueue', 'JoinableQueue',
            'QueueFull', 'QueueEmpty']
 
 import collections
-import heapq
+import heapq            # 默认小顶堆, 解决 Top-K 问题
 
 from . import events
 from . import futures
@@ -12,6 +15,9 @@ from . import locks
 from .tasks import coroutine
 
 
+#
+# 自定义异常: 队列空
+#
 class QueueEmpty(Exception):
     """Exception raised when Queue.get_nowait() is called on a Queue object
     which is empty.
@@ -19,6 +25,9 @@ class QueueEmpty(Exception):
     pass
 
 
+#
+# 自定义异常: 队列满
+#
 class QueueFull(Exception):
     """Exception raised when the Queue.put_nowait() method is called on a Queue
     object which is full.
@@ -26,6 +35,14 @@ class QueueFull(Exception):
     pass
 
 
+#########################################
+#             自定义队列
+#
+# 说明:
+#   - 生产者协程/消费者协程
+#   - 入队/出队
+#
+#########################################
 class Queue:
     """A queue, useful for coordinating producer and consumer coroutines.
 
@@ -43,22 +60,29 @@ class Queue:
             self._loop = events.get_event_loop()
         else:
             self._loop = loop
+
         self._maxsize = maxsize
 
         # Futures.
-        self._getters = collections.deque()
+        self._getters = collections.deque()      # 双端队列
         # Pairs of (item, Future).
-        self._putters = collections.deque()
+        self._putters = collections.deque()      # 双端队列
         self._init(maxsize)
 
     def _init(self, maxsize):
-        self._queue = collections.deque()
+        self._queue = collections.deque()        # 双端队列
 
+    #
+    # 左侧出队:
+    #
     def _get(self):
-        return self._queue.popleft()
+        return self._queue.popleft()             # 左侧出队
 
+    #
+    # 入队:
+    #
     def _put(self, item):
-        self._queue.append(item)
+        self._queue.append(item)                 # 入队
 
     def __repr__(self):
         return '<{} at {:#x} {}>'.format(
@@ -87,19 +111,31 @@ class Queue:
         while self._putters and self._putters[0][1].done():
             self._putters.popleft()
 
+    #
+    # 队列元素个数:
+    #
     def qsize(self):
         """Number of items in the queue."""
         return len(self._queue)
 
+    #
+    # 队列最大容量:
+    #
     @property
     def maxsize(self):
         """Number of items allowed in the queue."""
         return self._maxsize
 
+    #
+    # 队列空判断:
+    #
     def empty(self):
         """Return True if the queue is empty, False otherwise."""
         return not self._queue
 
+    #
+    # 队列满判断:
+    #
     def full(self):
         """Return True if there are maxsize items in the queue.
 
@@ -111,6 +147,9 @@ class Queue:
         else:
             return self.qsize() >= self._maxsize
 
+    #
+    # 入队操作:
+    #
     @coroutine
     def put(self, item):
         """Put an item into the queue.
@@ -167,6 +206,9 @@ class Queue:
         else:
             self._put(item)
 
+    #
+    # 出队操作:
+    #
     @coroutine
     def get(self):
         """Remove and return an item from the queue.
@@ -212,14 +254,27 @@ class Queue:
             # getter cannot be cancelled, we just removed done putters
             putter.set_result(None)
 
-            return self._get()
+            return self._get()    # 左侧出队
 
         elif self.qsize():
-            return self._get()
+            return self._get()    # 左侧出队
         else:
             raise QueueEmpty
 
 
+#########################################
+#             优先级队列
+#
+# 说明:
+#   - 生产者协程/消费者协程
+#   - 实现依赖:
+#       - 入队: heapq.heappush
+#       - 出队: heapq.heappop
+#   - heapq:
+#       - 默认小顶堆
+#       - 解决了Top-K问题
+#
+#########################################
 class PriorityQueue(Queue):
     """A subclass of Queue; retrieves entries in priority order (lowest first).
 
@@ -229,9 +284,17 @@ class PriorityQueue(Queue):
     def _init(self, maxsize):
         self._queue = []
 
+    #
+    # 入队操作:
+    #   - 依赖: heapq.heappush
+    #
     def _put(self, item, heappush=heapq.heappush):
         heappush(self._queue, item)
 
+    #
+    # 出队:
+    #   - 依赖: heapq.heappop
+    #
     def _get(self, heappop=heapq.heappop):
         return heappop(self._queue)
 
