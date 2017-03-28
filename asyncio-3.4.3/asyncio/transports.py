@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """Abstract Transport class."""
 
 import sys
@@ -9,6 +12,12 @@ __all__ = ['BaseTransport', 'ReadTransport', 'WriteTransport',
            ]
 
 
+#########################################
+#             基类: 传输层
+#
+# 说明:
+#
+#########################################
 class BaseTransport:
     """Base class for transports."""
 
@@ -32,6 +41,12 @@ class BaseTransport:
         raise NotImplementedError
 
 
+#########################################
+#             接口: 只读传输
+#
+# 说明:
+#
+#########################################
 class ReadTransport(BaseTransport):
     """Interface for read-only transports."""
 
@@ -52,6 +67,12 @@ class ReadTransport(BaseTransport):
         raise NotImplementedError
 
 
+#########################################
+#             接口: 只写传输
+#
+# 说明:
+#
+#########################################
 class WriteTransport(BaseTransport):
     """Interface for write-only transports."""
 
@@ -124,6 +145,13 @@ class WriteTransport(BaseTransport):
         raise NotImplementedError
 
 
+#########################################
+#             接口: 传输层
+#
+# 说明:
+#   - 可读, 可写
+#
+#########################################
 class Transport(ReadTransport, WriteTransport):
     """Interface representing a bidirectional transport.
 
@@ -146,6 +174,12 @@ class Transport(ReadTransport, WriteTransport):
     """
 
 
+#########################################
+#           接口: Datagram 传输层
+#
+# 说明:
+#
+#########################################
 class DatagramTransport(BaseTransport):
     """Interface for datagram (UDP) transports."""
 
@@ -169,6 +203,12 @@ class DatagramTransport(BaseTransport):
         raise NotImplementedError
 
 
+#########################################
+#           接口: Subprocess 传输层
+#
+# 说明:
+#
+#########################################
 class SubprocessTransport(BaseTransport):
 
     def get_pid(self):
