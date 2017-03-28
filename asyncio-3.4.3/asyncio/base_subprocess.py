@@ -4,7 +4,7 @@ import sys
 import warnings
 
 from . import futures
-from . import protocols
+from . import protocols                  # 协议接口
 from . import transports
 from .coroutines import coroutine
 from .log import logger
@@ -236,6 +236,9 @@ class BaseSubprocessTransport(transports.SubprocessTransport):
             self._protocol = None
 
 
+#
+# 协议:
+#
 class WriteSubprocessPipeProto(protocols.BaseProtocol):
 
     def __init__(self, proc, fd):
@@ -263,6 +266,9 @@ class WriteSubprocessPipeProto(protocols.BaseProtocol):
         self.proc._protocol.resume_writing()
 
 
+#
+# 协议:
+#
 class ReadSubprocessPipeProto(WriteSubprocessPipeProto,
                               protocols.Protocol):
 

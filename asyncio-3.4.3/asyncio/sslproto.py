@@ -6,7 +6,7 @@ try:
 except ImportError:  # pragma: no cover
     ssl = None
 
-from . import protocols
+from . import protocols                  # 协议接口
 from . import transports
 from .log import logger
 

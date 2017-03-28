@@ -5,7 +5,7 @@ import subprocess
 
 from . import events
 from . import futures
-from . import protocols
+from . import protocols                   # 协议接口
 from . import streams
 from . import tasks
 from .coroutines import coroutine
@@ -17,6 +17,9 @@ STDOUT = subprocess.STDOUT
 DEVNULL = subprocess.DEVNULL
 
 
+#
+# SubprocessStream 协议:
+#
 class SubprocessStreamProtocol(streams.FlowControlMixin,
                                protocols.SubprocessProtocol):
     """Like StreamReaderProtocol, but for a subprocess."""

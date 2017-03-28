@@ -13,7 +13,7 @@ if hasattr(socket, 'AF_UNIX'):
 from . import coroutines
 from . import events
 from . import futures
-from . import protocols
+from . import protocols                 # 协议接口
 from .coroutines import coroutine
 from .log import logger
 
@@ -134,6 +134,9 @@ if hasattr(socket, 'AF_UNIX'):
         return (yield from loop.create_unix_server(factory, path, **kwds))
 
 
+#
+# 协议Mixin:
+#
 class FlowControlMixin(protocols.Protocol):
     """Reusable flow control logic for StreamWriter.drain().
 
@@ -149,6 +152,7 @@ class FlowControlMixin(protocols.Protocol):
             self._loop = events.get_event_loop()
         else:
             self._loop = loop
+
         self._paused = False
         self._drain_waiter = None
         self._connection_lost = False
@@ -200,6 +204,9 @@ class FlowControlMixin(protocols.Protocol):
         yield from waiter
 
 
+#
+# 数据流协议:
+#
 class StreamReaderProtocol(FlowControlMixin, protocols.Protocol):
     """Helper class to adapt between Protocol and StreamReader.
 
