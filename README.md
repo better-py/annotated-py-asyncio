@@ -79,8 +79,26 @@ asyncio
         - asyncio.Task()
         - [tasks.py](./asyncio-3.4.3/asyncio/tasks.py)
 
-            
+- locks.py:
+    - 各种同步机制
 
+- queues.py:
+    - 自定义的队列: 优先级队列等
+
+- protocols.py
+    - 协议模块.
+    - 流, 数据报等
+    - streams.py
+    - base_subprocess.py
+    - subprocess.py
+    - sslproto.py
+
+- transports.py
+    - 传输层
+
+- selectors.py
+    - 选择器
+    - selector_events.py
 
 
 
