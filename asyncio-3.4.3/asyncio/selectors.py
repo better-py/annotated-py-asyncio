@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """Selectors module.
 
 This module allows high-level and efficient I/O multiplexing, built upon the

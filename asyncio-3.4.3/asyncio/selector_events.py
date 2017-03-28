@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """Event loop using a selector and related classes.
 
 A selector is a "notify-when-ready" multiplexer.  For a subclass which
@@ -21,8 +24,8 @@ from . import base_events
 from . import constants
 from . import events
 from . import futures
-from . import selectors
-from . import transports
+from . import selectors              # 选择器
+from . import transports             # 传输层
 from . import sslproto
 from .coroutines import coroutine
 from .log import logger
@@ -495,6 +498,12 @@ class BaseSelectorEventLoop(base_events.BaseEventLoop):
         sock.close()
 
 
+#########################################
+#           选择器: 传输层选择器
+#
+# 说明:
+#
+#########################################
 class _SelectorTransport(transports._FlowControlMixin,
                          transports.Transport):
 
@@ -621,6 +630,12 @@ class _SelectorTransport(transports._FlowControlMixin,
         return len(self._buffer)
 
 
+#########################################
+#       选择器: socket 传输层选择器
+#
+# 说明:
+#
+#########################################
 class _SelectorSocketTransport(_SelectorTransport):
 
     def __init__(self, loop, sock, protocol, waiter=None,
@@ -747,6 +762,12 @@ class _SelectorSocketTransport(_SelectorTransport):
         return True
 
 
+#########################################
+#       选择器: SSL 传输层选择器
+#
+# 说明:
+#
+#########################################
 class _SelectorSslTransport(_SelectorTransport):
 
     _buffer_factory = bytearray
@@ -974,6 +995,12 @@ class _SelectorSslTransport(_SelectorTransport):
         return False
 
 
+#########################################
+#       选择器: Datagram 传输层选择器
+#
+# 说明:
+#
+#########################################
 class _SelectorDatagramTransport(_SelectorTransport):
 
     _buffer_factory = collections.deque
