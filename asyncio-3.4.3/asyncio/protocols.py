@@ -1,9 +1,18 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """Abstract Protocol class."""
 
 __all__ = ['BaseProtocol', 'Protocol', 'DatagramProtocol',
            'SubprocessProtocol']
 
 
+#########################################
+#             协议基类
+#
+# 说明:
+#
+#########################################
 class BaseProtocol:
     """Common base class for protocol interfaces.
 
@@ -14,6 +23,7 @@ class BaseProtocol:
     write-only transport like write pipe
     """
 
+    # 创建连接时,调用
     def connection_made(self, transport):
         """Called when a connection is made.
 
@@ -22,6 +32,7 @@ class BaseProtocol:
         When the connection is closed, connection_lost() is called.
         """
 
+    # 断开连接时,调用
     def connection_lost(self, exc):
         """Called when the connection is lost or closed.
 
@@ -30,6 +41,7 @@ class BaseProtocol:
         aborted or closed).
         """
 
+    # 暂停写入
     def pause_writing(self):
         """Called when the transport's buffer goes over the high-water mark.
 
@@ -52,6 +64,7 @@ class BaseProtocol:
         without yielding until pause_writing() is called).
         """
 
+    # 继续写入
     def resume_writing(self):
         """Called when the transport's buffer drains below the low-water mark.
 
@@ -59,6 +72,12 @@ class BaseProtocol:
         """
 
 
+#########################################
+#             stream 协议接口
+#
+# 说明:
+#
+#########################################
 class Protocol(BaseProtocol):
     """Interface for stream protocol.
 
@@ -100,6 +119,12 @@ class Protocol(BaseProtocol):
         """
 
 
+#########################################
+#             datagram 协议接口
+#
+# 说明:
+#
+#########################################
 class DatagramProtocol(BaseProtocol):
     """Interface for datagram protocol."""
 
@@ -113,6 +138,12 @@ class DatagramProtocol(BaseProtocol):
         """
 
 
+#########################################
+#          subprocess call 协议接口
+#
+# 说明:
+#
+#########################################
 class SubprocessProtocol(BaseProtocol):
     """Interface for protocol for subprocess calls."""
 
